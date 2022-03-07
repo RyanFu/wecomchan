@@ -8,12 +8,13 @@
    1. [PHP版搭建说明](ONLINE.md) 
    2. [Go版说明](go-wecomchan/README.md)
    3. [腾讯云云函数搭建说明](go-scf/) 
+   4. [阿里云云函数搭建说明](python-aliyunfc/)
 
 ## 🎈 本项目属于方糖推送生态。该生态包含项目如下：
 
 - [Server酱Turbo](https://sct.ftqq.com)：支持企业微信、微信服务号、钉钉、飞书群机器人等多通道的在线服务，无需搭建直接使用，每天有免费额度
 - [Wecom酱](https://github.com/easychen/wecomchan)：通过企业微信推送消息到微信的消息推送函数和在线服务方案，开源免费，可自己搭建。支持多语言。
-- [Tele酱](https://github.com/easychen/telechan)：可以通过 Vercel 免费部署，且部署后 API 在国内网络可访问的 Telegram 多账户消息推送机器人
+- [PushDeer](https://github.com/easychen/pushdeer)：可自行搭建的、无需安装APP的开源推送方案。同时也提供安装APP的降级方案给低版本/没有快应用的系统。支持作为Server酱的通道进行推送，所有支持Server酱的软件和插件都能直接整合PushDeer。
 
 ## 企业微信应用消息配置说明
 
@@ -36,7 +37,7 @@ PS：消息接口无需认证即可使用，个人用微信就可以注册
 
 ![](https://theseven.ftqq.com/20210208143228.png)
 
-应用名称填入「Server酱」，应用logo到[这里](https://theseven.ftqq.com/20210208142819.png)下载，可见范围选择公司名。
+应用名称填入「Server酱」，应用logo到[这里](./20210208142819.png)下载，可见范围选择公司名。
 
 
 ![](https://theseven.ftqq.com/20210208143327.png)
@@ -119,7 +120,7 @@ print_r( $ret );
 PYTHON版:
 
 ```python
-import json,requests
+import json,requests,base64
 def send_to_wecom(text,wecom_cid,wecom_aid,wecom_secret,wecom_touid='@all'):
     get_token_url = f"https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid={wecom_cid}&corpsecret={wecom_secret}"
     response = requests.get(get_token_url).content
@@ -140,12 +141,66 @@ def send_to_wecom(text,wecom_cid,wecom_aid,wecom_secret,wecom_touid='@all'):
     else:
         return False
 
+def send_to_wecom_image(base64_content,wecom_cid,wecom_aid,wecom_secret,wecom_touid='@all'):
+    get_token_url = f"https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid={wecom_cid}&corpsecret={wecom_secret}"
+    response = requests.get(get_token_url).content
+    access_token = json.loads(response).get('access_token')
+    if access_token and len(access_token) > 0:
+        upload_url = f'https://qyapi.weixin.qq.com/cgi-bin/media/upload?access_token={access_token}&type=image'
+        upload_response = requests.post(upload_url, files={
+            "picture": base64.b64decode(base64_content)
+        }).json()
+        if "media_id" in upload_response:
+            media_id = upload_response['media_id']
+        else:
+            return False
+
+        send_msg_url = f'https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token={access_token}'
+        data = {
+            "touser":wecom_touid,
+            "agentid":wecom_aid,
+            "msgtype":"image",
+            "image":{
+                "media_id": media_id
+            },
+            "duplicate_check_interval":600
+        }
+        response = requests.post(send_msg_url,data=json.dumps(data)).content
+        return response
+    else:
+        return False
+
+def send_to_wecom_markdown(text,wecom_cid,wecom_aid,wecom_secret,wecom_touid='@all'):
+    get_token_url = f"https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid={wecom_cid}&corpsecret={wecom_secret}"
+    response = requests.get(get_token_url).content
+    access_token = json.loads(response).get('access_token')
+    if access_token and len(access_token) > 0:
+        send_msg_url = f'https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token={access_token}'
+        data = {
+            "touser":wecom_touid,
+            "agentid":wecom_aid,
+            "msgtype":"markdown",
+            "markdown":{
+                "content":text
+            },
+            "duplicate_check_interval":600
+        }
+        response = requests.post(send_msg_url,data=json.dumps(data)).content
+        return response
+    else:
+        return False
 ```
 
 使用实例：
 
 ```python
 ret = send_to_wecom("推送测试\r\n测试换行", "企业ID③", "应用ID①", "应用secret②");
+print( ret );
+ret = send_to_wecom('<a href="https://www.github.com/">文本中支持超链接</a>', "企业ID③", "应用ID①", "应用secret②");
+print( ret );
+ret = send_to_wecom_image("此处填写图片Base64", "企业ID③", "应用ID①", "应用secret②");
+print( ret );
+ret = send_to_wecom_markdown("**Markdown 内容**", "企业ID③", "应用ID①", "应用secret②");
 print( ret );
 ```
 
@@ -268,8 +323,7 @@ namespace WeCom.Demo
 
 其他版本的函数可参照上边的逻辑自行编写，欢迎PR。
 
-
-
+发送图片、卡片、文件或 Markdown 消息的高级用法见 [企业微信API](https://work.weixin.qq.com/api/doc/90000/90135/90236)。
 
 
 
